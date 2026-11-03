@@ -1,0 +1,16 @@
+{
+  "name": "owners",
+  "private": true,
+  "description": "test repo",
+  "license": "UNLICENSED",
+  "type": "module",
+  "devDependencies": {
+    "@nx/eslint": "^24.0.3",
+    "@nx/js": "^24.0.3",
+    "@nx/vitest": "^24.0.3",
+    "@pagopa/nx-docker": "gh:^0.1.8",
+    "@pagopa/nx-terraform": "gh:^0.5.15",
+    "nx": "24.0.3",
+    "oxfmt": "^0.75.0"
+  }
+}
