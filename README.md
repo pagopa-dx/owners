@@ -1,2 +1,176 @@
 # owners
+
 test repo
+
+## Getting Started
+
+### Using local machine
+
+This project uses specific versions of `node`, `pnpm` and `terraform`. The
+resolved toolchain is recorded in `mise.lock`. To make sure your development
+setup matches with production, use [mise](https://mise.jdx.dev/) to install the
+required tools.
+
+1. Install [mise](https://mise.jdx.dev/installing-mise.html)
+
+2. Install the locked toolchain declared in `mise.toml` and `mise.lock`
+
+```bash
+mise install
+```
+
+3. Install dependencies using `pnpm`
+
+DX packages are served by GitHub Packages and are installed through pnpm's
+built-in `gh:` alias, so the rest of the dependencies keep resolving from the
+default registry. Your GitHub token must include the `read:packages` scope. If
+you use the GitHub CLI, add it with:
+
+```bash
+gh auth refresh --scopes read:packages
+```
+
+`dx init` wrote the credential to a local, git-ignored `.npmrc`. On a fresh
+clone, recreate it with:
+
+```bash
+install -m 600 /dev/null .npmrc && printf '//npm.pkg.github.com/:_authToken=%s\n' "$(gh auth token)" > .npmrc
+```
+
+Then install the dependencies:
+
+```bash
+pnpm install
+```
+
+4. Build all the workspaces contained by this repo
+
+```bash
+pnpm nx run-many -t build
+```
+
+### GitHub Copilot plugins
+
+This repository includes `.github/copilot/settings.json` with the
+recommended PagoPA DX marketplace and plugin suggestions for GitHub Copilot.
+
+Keep the file committed to avoid per-developer setup drift. If your team does
+not use some of the suggested plugins, edit the related flags in that file.
+See the DX documentation for details:
+https://dx.pagopa.it/docs/coding-with-ai/plugin-marketplace
+
+## Useful commands
+
+This project uses `pnpm` and `nx` with workspaces to manage projects and dependencies. Here is a list of useful commands to work in this repo.
+
+### Work with workspaces
+
+```bash
+# build all the workspaces using Nx
+pnpm nx run-many -t build
+
+# to execute COMMAND on WORKSPACE_NAME
+pnpm --filter WORKSPACE_NAME COMMAND
+# to execute COMMAND on all workspaces
+pnpm -r COMMAND
+```
+
+### Add dependencies
+
+```bash
+# add a dependency to the workspace root
+pnpm -w add vitest
+
+# add vitest as devDependency on citizen-func
+pnpm --filter citizen-func add -D vitest
+
+# add zod as dependency on each workspace
+pnpm -r add zod
+```
+
+## Folder structure
+
+### `/apps`
+
+It contains the applications included in the project.
+Each folder is meant to produce a deployable artifact; how and where to deploy it is demanded to a single application.
+
+Each sub-folder is a workspace.
+
+### `/packages`
+
+Packages are reusable modules that implement a specific logic of the project. They are meant for sharing implementations across other apps and packages of the same projects, as well as being published in public registries.
+
+Packages that are meant for internal code sharing have `private: true` in their `package.json` file; all the others are meant to be published into the public registry.
+
+Each sub-folder is a workspace.
+
+### `/infra`
+
+It contains the _infrastructure-as-code_ project that defines the resources for the project as well as the execution environments. Database schemas and migrations are defined here too, in case they are needed.
+
+### `/docs`
+
+Technical documentation about the project. Topics that may be included are architecture overviews, [ADRs](https://adr.github.io/), coding standards, and anything that can be relevant for a developer approaching the project as a contributor or as an auditor.
+
+User documentation doesn't usually go in here. For public packages, it must go in the package's `README` file so that it will also be uploaded to the registry; user-faced documentation websites, when needed by the project, go under the `/apps` folder as they are treated as end-user applications.
+
+## Releases
+
+We use [Nx Release](https://nx.dev/features/manage-releases) to automate package versioning and releases.
+
+Each Pull Request that includes changes that require a version bump must include a _version plan file_ that describes the introduced changes.
+
+To create a _version plan file_ run the following command and follow the instructions.
+
+```bash
+pnpm nx release plan
+```
+
+#### How it works
+
+- When opening a Pull Request with a change intended to be published, add a version plan file that describes the change and the version bump type (patch, minor, major) for each involved app or package.
+- Once the Pull Request is merged, a new Pull Request named `Version Packages` will be automatically opened with all the release changes such as version bumping for each involved app or package and changelog update; if an open `Version Packages` PR already exists, it will be updated and the package versions calculated accordingly.
+  Only apps and packages mentioned in the version plan files will be bumped.
+- Review the `Version Packages` PR and merge it when ready. Version plan files will be deleted.
+- A Release entry is created for each app or package whose version has been bumped.
+
+### Folder structure
+
+The IaC template contains the following projects:
+
+#### repository
+
+Set up the current repository settings.
+It's intended to be executed once on a local machine at project initialization.
+
+```sh
+cd infra/repository
+
+# Substitute subscription_name with the actual subscription name if you selected Azure as CSP
+az account set --name <subscription_name>
+
+terraform init
+terraform plan
+terraform apply
+```
+
+### Workflow automation
+
+The workflow `validate.yaml` runs the DX Code Review on every Pull Request and
+delegates to the reusable
+[`validate-v2.yaml`](https://github.com/pagopa/dx/blob/main/.github/workflows/validate-v2.yaml)
+workflow. It formats, lints, scans and plans every Nx project affected by the
+change; Terraform plans run under the `infra-<env>-ci` GitHub environment
+(or `bootstrapper-<env>-ci` for bootstrapper projects) and the result is
+published as a comment on the Pull Request. The workflow fails when a plan
+fails.
+
+Terraform roots under `infra/` are Nx projects inferred by
+`@pagopa/nx-terraform`, which provides the `fmt`, `validate`, `trivy`, `docs`,
+`plan` and `apply` targets. Shared Terraform modules live in `_modules`
+directories (for example `infra/bootstrapper/_modules`): changes there mark
+every project in the same area as affected.
+
+Projects that contain a `Dockerfile` are inferred by `@pagopa/nx-docker`,
+which provides the `docker:build`, `docker:push` and `docker:run` targets.
